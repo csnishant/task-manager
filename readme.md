@@ -88,9 +88,7 @@ Each task contains:
 personal-task-manager/
 │
 ├── backend/
-│   │
-│   ├── src/
-│   │   ├── config/
+│   ├── config/
 │   │   │   └── db.js
 │   │   │
 │   │   ├── controllers/

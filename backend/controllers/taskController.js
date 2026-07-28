@@ -84,39 +84,6 @@ const getTaskById = async (req, res, next) => {
   }
 };
 
-// update a task
-const updateTask = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid task ID",
-      });
-    }
-
-    const task = await Task.findByIdAndUpdate(id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: "Task not found",
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Task updated successfully",
-      task,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
 const updateTask = async (req, res, next) => {
   try {
     const { id } = req.params;

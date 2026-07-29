@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { getTasks, createTask, updateTask, deleteTask } from "../services/api"; // Adjust this path according to your project structure
+import { getTasks, createTask, updateTask, deleteTask } from "../services/api";
 
 const TaskManager = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [uiError, setUiError] = useState("");
+  const [apiError, setApiError] = useState("");
+  const [validationError, setValidationError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  // Filters & Sorting State
+  // Filters & Sorting
   const [statusFilter, setStatusFilter] = useState("");
   const [sortBy, setSortBy] = useState("");
 
@@ -21,15 +22,14 @@ const TaskManager = () => {
     dueDate: "",
   });
 
-  // Fetch all tasks matching active filters
   const fetchTaskList = async () => {
     setLoading(true);
-    setUiError("");
+    setApiError("");
     try {
       const response = await getTasks(statusFilter, sortBy);
       setTasks(response.tasks || []);
     } catch (err) {
-      setUiError(err.message || "Failed to load tasks. Please try again.");
+      setApiError(err.message || "Failed to fetch tasks from server.");
     } finally {
       setLoading(false);
     }
@@ -41,17 +41,31 @@ const TaskManager = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === "title" && value.trim()) {
+      setValidationError("");
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Submit Handler for both Create and Update
+  // Quick Status Update directly from Task Card
+  const handleQuickStatusChange = async (taskId, newStatus) => {
+    try {
+      await updateTask(taskId, { status: newStatus });
+      fetchTaskList();
+    } catch (err) {
+      setApiError(err.message || "Failed to update status.");
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setUiError("");
+    setApiError("");
     setSuccessMsg("");
+    setValidationError("");
 
+    // Frontend validation before payload dispatch
     if (!formData.title.trim()) {
-      setUiError("Task title is required.");
+      setValidationError("Task title cannot be empty.");
       return;
     }
 
@@ -67,11 +81,10 @@ const TaskManager = () => {
       resetForm();
       fetchTaskList();
     } catch (err) {
-      setUiError(err.message || "An error occurred while saving the task.");
+      setApiError(err.message || "Server Error: Could not save task.");
     }
   };
 
-  // Populate form for editing
   const handleEdit = (task) => {
     setEditingTaskId(task._id);
     setFormData({
@@ -81,26 +94,25 @@ const TaskManager = () => {
       status: task.status || "todo",
       dueDate: task.dueDate ? task.dueDate.split("T")[0] : "",
     });
-    setUiError("");
+    setApiError("");
     setSuccessMsg("");
   };
 
-  // Delete Handler
   const handleDelete = async (id) => {
-    setUiError("");
+    setApiError("");
     setSuccessMsg("");
     try {
       await deleteTask(id);
       setSuccessMsg("Task deleted successfully.");
       fetchTaskList();
     } catch (err) {
-      setUiError(err.message || "Failed to delete task.");
+      setApiError(err.message || "Could not delete task.");
     }
   };
 
-  // Reset Form
   const resetForm = () => {
     setEditingTaskId(null);
+    setValidationError("");
     setFormData({
       title: "",
       description: "",
@@ -111,48 +123,47 @@ const TaskManager = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-6 bg-slate-50 min-h-screen text-gray-800">
+    <div className="max-w-5xl mx-auto p-6 bg-[var(--bg)] min-h-screen">
       <header className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight text-red-900">
-          Task Dashboard
-        </h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Manage, filter, and organize your workload effortlessly.
+        <h1 className="text-3xl font-bold">Personal Task Manager</h1>
+        <p className="text-sm opacity-70">
+          Organize, filter, and track your daily work seamlessly.
         </p>
       </header>
 
-      {/* Global Status Notifications */}
-      {uiError && (
-        <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex justify-between items-center">
-          <span>{uiError}</span>
+      {/* Global API Banner Error */}
+      {apiError && (
+        <div className="mb-6 p-4 rounded-lg bg-red-100 border border-red-300 text-red-800 text-sm flex justify-between items-center">
+          <span>{apiError}</span>
           <button
-            onClick={() => setUiError("")}
-            className="text-red-500 hover:text-red-700 font-semibold text-xs ml-4">
+            onClick={() => setApiError("")}
+            className="font-bold text-xs hover:underline">
             Dismiss
           </button>
         </div>
       )}
 
+      {/* Success Notification Banner */}
       {successMsg && (
-        <div className="mb-6 p-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm flex justify-between items-center">
+        <div className="mb-6 p-4 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-800 text-sm flex justify-between items-center">
           <span>{successMsg}</span>
           <button
             onClick={() => setSuccessMsg("")}
-            className="text-emerald-500 hover:text-emerald-700 font-semibold text-xs ml-4">
+            className="font-bold text-xs hover:underline">
             Dismiss
           </button>
         </div>
       )}
 
-      {/* Form Section */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-8">
-        <h2 className="text-lg font-medium text-slate-800 mb-4">
-          {editingTaskId ? "Edit Task" : "Create New Task"}
+      {/* Task Creation & Update Form */}
+      <div className="p-6 rounded-xl border border-[var(--border)] bg-white/5 shadow-sm mb-8">
+        <h2 className="text-xl font-semibold mb-4">
+          {editingTaskId ? "Edit Task" : "Add New Task"}
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-1">
               Title *
             </label>
             <input
@@ -160,13 +171,18 @@ const TaskManager = () => {
               name="title"
               value={formData.title}
               onChange={handleChange}
-              placeholder="e.g. Design wireframes for onboarding flow"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Enter task title"
+              className={`w-full px-3 py-2 border rounded-lg text-sm bg-transparent ${
+                validationError ? "border-red-500" : "border-[var(--border)]"
+              }`}
             />
+            {validationError && (
+              <p className="text-red-500 text-xs mt-1">{validationError}</p>
+            )}
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-1">
               Description
             </label>
             <textarea
@@ -174,44 +190,56 @@ const TaskManager = () => {
               rows="3"
               value={formData.description}
               onChange={handleChange}
-              placeholder="Add relevant notes or sub-tasks..."
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+              placeholder="Optional notes or details..."
+              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-transparent resize-none"
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-1">
                 Priority
               </label>
               <select
                 name="priority"
                 value={formData.priority}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white">
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-transparent">
+                <option value="low" className="text-black">
+                  Low
+                </option>
+                <option value="medium" className="text-black">
+                  Medium
+                </option>
+                <option value="high" className="text-black">
+                  High
+                </option>
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-1">
                 Status
               </label>
               <select
                 name="status"
                 value={formData.status}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white">
-                <option value="todo">To Do</option>
-                <option value="in_progress">In Progress</option>
-                <option value="done">Done</option>
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-transparent">
+                <option value="todo" className="text-black">
+                  To Do
+                </option>
+                <option value="in_progress" className="text-black">
+                  In Progress
+                </option>
+                <option value="done" className="text-black">
+                  Done
+                </option>
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-1">
                 Due Date
               </label>
               <input
@@ -219,7 +247,7 @@ const TaskManager = () => {
                 name="dueDate"
                 value={formData.dueDate}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-transparent"
               />
             </div>
           </div>
@@ -227,15 +255,15 @@ const TaskManager = () => {
           <div className="flex items-center gap-3 pt-2">
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg bg-indigo-600 text-white font-medium text-sm hover:bg-indigo-700 transition">
-              {editingTaskId ? "Update Task" : "Save Task"}
+              className="px-5 py-2 rounded-lg bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition">
+              {editingTaskId ? "Update Task" : "Create Task"}
             </button>
 
             {editingTaskId && (
               <button
                 type="button"
                 onClick={resetForm}
-                className="px-5 py-2 rounded-lg bg-slate-100 text-slate-600 font-medium text-sm hover:bg-slate-200 transition">
+                className="px-5 py-2 rounded-lg border border-[var(--border)] text-sm font-medium hover:bg-white/10 transition">
                 Cancel
               </button>
             )}
@@ -243,45 +271,59 @@ const TaskManager = () => {
         </form>
       </div>
 
-      {/* Filter and Sort Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6">
+      {/* Filter Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-[var(--border)] bg-white/5 mb-6">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          <span className="text-xs font-semibold uppercase tracking-wider">
             Filter Status:
           </span>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-1.5 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            <option value="">All Statuses</option>
-            <option value="todo">To Do</option>
-            <option value="in_progress">In Progress</option>
-            <option value="done">Done</option>
+            className="px-3 py-1.5 border border-[var(--border)] rounded-md text-sm bg-transparent">
+            <option value="" className="text-black">
+              All Tasks
+            </option>
+            <option value="todo" className="text-black">
+              To Do
+            </option>
+            <option value="in_progress" className="text-black">
+              In Progress
+            </option>
+            <option value="done" className="text-black">
+              Done
+            </option>
           </select>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          <span className="text-xs font-semibold uppercase tracking-wider">
             Sort By:
           </span>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="px-3 py-1.5 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            <option value="">None</option>
-            <option value="dueDate">Due Date</option>
-            <option value="priority">Priority</option>
+            className="px-3 py-1.5 border border-[var(--border)] rounded-md text-sm bg-transparent">
+            <option value="" className="text-black">
+              None
+            </option>
+            <option value="dueDate" className="text-black">
+              Due Date
+            </option>
+            <option value="priority" className="text-black">
+              Priority
+            </option>
           </select>
         </div>
       </div>
 
-      {/* Task List */}
+      {/* Task List Rendering */}
       {loading ? (
-        <div className="text-center py-12 text-slate-400 text-sm">
+        <div className="text-center py-12 text-sm opacity-60">
           Loading tasks...
         </div>
       ) : tasks.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-xl border border-dashed border-slate-300 text-slate-400 text-sm">
+        <div className="text-center py-12 rounded-xl border border-dashed border-[var(--border)] text-sm opacity-60">
           No tasks found. Create one above to get started.
         </div>
       ) : (
@@ -289,64 +331,56 @@ const TaskManager = () => {
           {tasks.map((task) => (
             <div
               key={task._id}
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-slate-300 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              className="p-5 rounded-xl border border-[var(--border)] bg-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-1 max-w-2xl">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-semibold text-slate-800 text-base">
-                    {task.title}
-                  </h3>
+                  <h3 className="font-semibold text-base">{task.title}</h3>
 
-                  {/* Priority Tag */}
-                  <span
-                    className={`text-[11px] font-semibold px-2 py-0.5 rounded-md capitalize ${
-                      task.priority === "high"
-                        ? "bg-red-50 text-red-600 border border-red-100"
-                        : task.priority === "medium"
-                          ? "bg-amber-50 text-amber-600 border border-amber-100"
-                          : "bg-slate-100 text-slate-600 border border-slate-200"
-                    }`}>
-                    {task.priority}
-                  </span>
-
-                  {/* Status Tag */}
-                  <span
-                    className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${
-                      task.status === "done"
-                        ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
-                        : task.status === "in_progress"
-                          ? "bg-blue-50 text-blue-600 border border-blue-100"
-                          : "bg-slate-100 text-slate-500 border border-slate-200"
-                    }`}>
-                    {task.status === "in_progress"
-                      ? "In Progress"
-                      : task.status === "todo"
-                        ? "To Do"
-                        : "Done"}
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded border border-[var(--border)] capitalize">
+                    {task.priority} Priority
                   </span>
                 </div>
 
                 {task.description && (
-                  <p className="text-slate-600 text-sm leading-relaxed">
+                  <p className="text-sm opacity-80 leading-relaxed">
                     {task.description}
                   </p>
                 )}
 
                 {task.dueDate && (
-                  <p className="text-xs text-slate-400 pt-1">
-                    Due on: {new Date(task.dueDate).toLocaleDateString()}
+                  <p className="text-xs opacity-50">
+                    Due: {new Date(task.dueDate).toLocaleDateString()}
                   </p>
                 )}
               </div>
 
-              <div className="flex items-center gap-2 self-end sm:self-center">
+              <div className="flex items-center gap-3 self-end sm:self-center">
+                {/* Immediate Status Dropdown */}
+                <select
+                  value={task.status}
+                  onChange={(e) =>
+                    handleQuickStatusChange(task._id, e.target.value)
+                  }
+                  className="px-2 py-1 border border-[var(--border)] rounded text-xs bg-transparent">
+                  <option value="todo" className="text-black">
+                    To Do
+                  </option>
+                  <option value="in_progress" className="text-black">
+                    In Progress
+                  </option>
+                  <option value="done" className="text-black">
+                    Done
+                  </option>
+                </select>
+
                 <button
                   onClick={() => handleEdit(task)}
-                  className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition">
+                  className="px-3 py-1 text-xs font-medium border border-[var(--border)] rounded hover:bg-white/10 transition">
                   Edit
                 </button>
                 <button
                   onClick={() => handleDelete(task._id)}
-                  className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition">
+                  className="px-3 py-1 text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20 rounded hover:bg-red-500/20 transition">
                   Delete
                 </button>
               </div>

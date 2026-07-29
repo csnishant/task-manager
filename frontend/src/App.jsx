@@ -1,11 +1,7 @@
-import React from "react";
+import TaskManager from "./pages/TaskManager";
 
-function App() {
-  return (
-    <div className="App">
- APP
-    </div>
-  );
-}
+const App = () => {
+  return <TaskManager />;
+};
 
 export default App;
